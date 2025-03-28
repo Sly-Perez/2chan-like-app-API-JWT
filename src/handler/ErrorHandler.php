@@ -6,10 +6,10 @@ class ErrorHandler{
         http_response_code(500);
         
         echo json_encode([
-            "error" => "Internal Server Error",
-            "file" => $e->getFile(),
-            "line" => $e->getLine(),
-            "message" => $e->getMessage()
+            "errors" => ["Internal Server Error"],
+            //"file" => $e->getFile(),
+            //"line" => $e->getLine(),
+            //"message" => $e->getMessage()
         ]);
     }
 
