@@ -12,11 +12,12 @@ class UserGateway{
         $sql = "SELECT
                     * 
                 FROM users 
-                WHERE user_email=:user_email";
+                WHERE (email=:email) AND (state=:state)";
 
         $stmt = $this->dbCon->prepare($sql);
 
-        $stmt->bindValue(":user_email", $email, PDO::PARAM_STR);
+        $stmt->bindValue(":email", $email, PDO::PARAM_STR);
+        $stmt->bindValue(":state", 1, PDO::PARAM_INT);
 
         $stmt->execute();
 
@@ -24,18 +25,27 @@ class UserGateway{
 
         return $data;
     }
+    
     //it can return an array (if it exists) or false (if it does not)
-    public function getById(string $id): array | false{
-        $sql = "SELECT
-                    user_id, user_username,
-                    user_picture, user_joinedAt,
-                    user_amountOfPosts 
+    public function getById(string $id, bool $email_will_display = false): array | false{
+        $sql =  $email_will_display 
+                ? "SELECT
+                    userId, username, email,
+                    picture, joinedAt,
+                    amountOfPosts, hierarchyLevelId 
                 FROM users 
-                WHERE user_id=:user_id";
+                WHERE (userId=:userId) AND (state=:state)"
+                : "SELECT
+                    userId, username,
+                    picture, joinedAt,
+                    amountOfPosts, hierarchyLevelId 
+                FROM users 
+                WHERE (userId=:userId) AND (state=:state)";
 
         $stmt = $this->dbCon->prepare($sql);
 
-        $stmt->bindValue(":user_id", $id, PDO::PARAM_INT);
+        $stmt->bindValue(":userId", $id, PDO::PARAM_INT);
+        $stmt->bindValue(":state", 1, PDO::PARAM_INT);
 
         $stmt->execute();
 
@@ -44,54 +54,117 @@ class UserGateway{
         return $data;
     }
 
-    public function add(array $data): void{
-        $sql = "INSERT INTO 
-                    users(user_username, user_email, user_password)
-                    VALUES(:user_username, :user_email, :user_password)";
+    public function add(array $data, bool $pictureIsUploaded): int{
+        try {
+            $this->dbCon->beginTransaction();
+            //if the user uploaded a picture, the System will store the picture name in the "picture" field in the users table in the database
+            //otherwise, the System will not store any name, leaving the name by default
+            $sql = $pictureIsUploaded 
+                    ? "INSERT INTO 
+                    users(username, email, password, picture)
+                    VALUES(:username, :email, :password, :picture)"
+                    : "INSERT INTO
+                    users(username, email, password)
+                    VALUES(:username, :email, :password)";
 
-        $stmt = $this->dbCon->prepare($sql);
+            $stmt = $this->dbCon->prepare($sql);
+            
+            $stmt->bindValue(":username", $data["username"], PDO::PARAM_STR);
+            $stmt->bindValue(":email", $data["email"], PDO::PARAM_STR);
+            $stmt->bindValue(":password", password_hash($data["password"], PASSWORD_DEFAULT), PDO::PARAM_STR);
+            
+            if($pictureIsUploaded){
+                $stmt->bindValue(":picture", $data['picture'], PDO::PARAM_STR);
+            }
+
+            $stmt->execute();
+
+            $returnedId = $this->dbCon->lastInsertId(); 
         
-        $stmt->bindValue(":user_username", $data["username"], PDO::PARAM_STR);
-        $stmt->bindValue(":user_email", $data["email"], PDO::PARAM_STR);
-        $stmt->bindValue(":user_password", password_hash($data["password"], PASSWORD_DEFAULT), PDO::PARAM_STR);
+            $this->dbCon->commit();
 
-        $stmt->execute();
+            return $returnedId;
+
+        } catch (PDOException $e) {
+            $this->dbCon->rollBack();
+            throw $e;
+        }
+        
     }
 
-    public function setUserToken(array $data, string $token):void{
+    public function setUserToken(array $data, string $token): void{
         $sql = "UPDATE users
-                    SET user_sessionToken=:user_sessionToken
-                    WHERE user_id=:user_id";
+                    SET sessionToken=:sessionToken
+                    WHERE userId=:userId";
         
         $stmt = $this->dbCon->prepare($sql);
 
-        $stmt->bindValue(":user_sessionToken", $token);
-        $stmt->bindValue(":user_id", $data['user_id']);
+        $stmt->bindValue(":sessionToken", $token, PDO::PARAM_STR);
+        $stmt->bindValue(":userId", $data['userId'], PDO::PARAM_INT);
 
         $stmt->execute();
     }
 
 
-    public function unsetUserToken(array $data):void{
+    public function unsetUserToken(array $data): void{
         $sql = "UPDATE users
-                    SET user_sessionToken=:user_sessionToken
-                    WHERE user_id=:user_id";
+                    SET sessionToken=:sessionToken
+                    WHERE userId=:userId";
         
         $stmt = $this->dbCon->prepare($sql);
 
-        $stmt->bindValue(":user_sessionToken", NULL);
-        $stmt->bindValue(":user_id", $data['user_id']);
+        $stmt->bindValue(":sessionToken", NULL, PDO::PARAM_NULL);
+        $stmt->bindValue(":userId", $data['userId'], PDO::PARAM_INT);
 
         $stmt->execute();
     }
 
-/*
-    public function update(array $current, array $new): int{
+    
+    public function update(array $old, array $new): void{
+        
+        try {
+            $this->dbCon->beginTransaction();
+            
+            $sql = "UPDATE users
+                    SET username=:username, 
+                        email=:email, 
+                        password=:password, 
+                        picture=:picture
+                    WHERE userId=:userId";
 
+            $stmt = $this->dbCon->prepare($sql);
+
+            $stmt->bindValue(":username", $new["username"] ?? $old["username"], PDO::PARAM_STR);
+            $stmt->bindValue(":email", $new["email"] ?? $old["email"], PDO::PARAM_STR);
+            //we don't want to re-hash an already hashed password
+            $stmt->bindValue(":password", ($new["password"] !== NULL) ? password_hash($new["password"], PASSWORD_DEFAULT) : $old["password"], PDO::PARAM_STR);
+            $stmt->bindValue(":picture", $new["picture"] ?? $old["picture"], PDO::PARAM_STR);
+            $stmt->bindValue(":userId", $old["userId"], PDO::PARAM_INT);
+
+            $stmt->execute();
+
+            $this->dbCon->commit();
+        } catch (PDOException $e) {
+            $this->dbCon->rollBack();
+            throw $e;
+        }
     }
+    
 
-    public function deleteById(string $id): int{
+    public function deleteById(string $id): void{
+        
+        try {
+            $sql =  "CALL usp_deleteUserById(:userId)";
 
+            $stmt = $this->dbCon->prepare($sql);
+
+            $stmt->bindValue(":userId", $id, PDO::PARAM_INT);
+
+            $stmt->execute();
+
+        } catch (PDOException $e) {
+            throw $e;
+        }
     }
-*/
+    
 }
