@@ -107,7 +107,7 @@ class PostGateway{
             throw $e;
         }
         
-    }
+    } 
 
     public function deleteById(string $postId): void{
         
