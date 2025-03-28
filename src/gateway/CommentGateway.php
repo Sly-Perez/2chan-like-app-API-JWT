@@ -156,7 +156,7 @@ class CommentGateway{
             throw $e;
         }
         
-    }
+    } 
 
     public function deleteById(string $id, ?string $responseTo): void{
         try {
