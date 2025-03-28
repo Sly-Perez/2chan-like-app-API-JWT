@@ -70,7 +70,7 @@ if(array_key_exists(3, $parts)){
 $id = ($url===NULL && array_key_exists(3, $parts)) ? $parts[3] : NULL;
 
 //handle display of images by resource
-//localhost/PHP_API_JWT/users/3/pictures
+//localhost/API/users/3/pictures
 if($id !== NULL && array_key_exists(4, $parts)){
     //verify the previous validation of url responded with a NULL, so that there won't be any conflicts and won't overwrite any valid urls
     switch ($parts[4]) {
