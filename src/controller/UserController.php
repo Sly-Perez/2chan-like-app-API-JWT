@@ -186,8 +186,8 @@ class UserController{
 
                         if(password_verify($sanitizedData['password'], $user['password'])){
                             
-                            $token = $this->generateJWT($user['email']);
-                            $this->gateway->setUserToken($user, $token);
+                            $token = $this->generateJWT($user['userId']);
+                            $this->setUserTokenByJWT($user, $token);
                             echo json_encode([
                                 "message"=>"User logged in successfully",
                                 "token"=>$token
@@ -485,12 +485,20 @@ class UserController{
         return $errors;
     }
 
-    private function generateJWT(string $email):string{
+    private function generateUUID() {
+        $data = random_bytes(16);
+        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+    }
+
+    private function generateJWT(string $userId):string{
 
         $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
         $base64UrlHeader = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($header));
     
-        $payload = json_encode(['email' => $email, 'exp' => time() + 3600]);
+        $uuid = $this->generateUUID();
+        $payload = json_encode(['userId' => $userId, 'exp' => time() + 3600, 'jti' => $uuid]);
         $base64UrlPayload = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($payload));
     
         $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, 'secret-key-that-no-one-knows', true);
@@ -516,7 +524,11 @@ class UserController{
     
         $payload = json_decode(base64_decode($base64UrlPayload), true);
     
-        if(!isset($payload['exp']) || !isset($payload['email'])){
+        if(!isset($payload['jti'])){
+            return false;
+        }
+
+        if(!isset($payload['userId']) || !isset($payload['exp'])){
             return false;
         }
 
@@ -524,13 +536,15 @@ class UserController{
             return false;
         }
         
-        $user = $this->gateway->getByEmail($payload['email']);
-
-        if(!$user){
+        $userDB = $this->gateway->getById($payload['userId'], true);
+        
+        if(!$userDB){
             return false;
         }
+        
+        $user = $this->gateway->getByEmail($userDB['email']);
 
-        if(($user['sessionToken']!==$jwt) || ($user['sessionToken']===NULL)){
+        if(($user['sessionToken'] !== $payload['jti']) || ($user['sessionToken'] === NULL)){
             return false;
         }
     
@@ -545,11 +559,30 @@ class UserController{
     
         $payload = json_decode(base64_decode($base64UrlPayload), true);
 
-        if(!isset($payload['exp']) || !isset($payload['email'])){
+        if(!isset($payload['jti'])){
             return false;
         }
 
-        return $payload['email'];
+        if(!isset($payload['userId']) || !isset($payload['exp'])){
+            return false;
+        }
+
+        $user = $this->gateway->getById($payload['userId'], true);
+
+        return $user['email'];
+    }
+
+    private function setUserTokenByJWT(array $data, string $jwt): void{
+        $headers = apache_request_headers();
+        $token = $headers['Authorization'] ?? '';
+    
+        $token = str_replace('Bearer ', '', $token);
+
+        list($base64UrlHeader, $base64UrlPayload, $base64UrlSignature) = explode('.', $jwt);
+    
+        $payload = json_decode(base64_decode($base64UrlPayload), true);
+
+        $this->gateway->setUserToken($data, $payload['jti']);
     }
 
     public function getJWT():string{
