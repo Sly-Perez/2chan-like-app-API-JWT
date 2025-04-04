@@ -1,6 +1,7 @@
-# Weekie Mochi API
+# Weekie Mochi JWT API
 Weekie Mochi is a 2chan-like app: It allows users to create posts, user profiles, comments and allows users to react to comments.<br>
-Weekie Mochi works with JSON WEB TOKEN's.
+This version of the API works with JSON WEB TOKEN's to handle sessions.
+
 ## Business Rules
 - **Profiles**:
     - Only users with a profile can access to the endpoints of the api.
