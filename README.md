@@ -39,7 +39,7 @@ You have access to many endpoints. In the following document, we will show the e
 At the same time, the endpoints will be separated by entity in the database to facilitate an object-oriented comprehension.
 
 ## Unauthenticated Users
-### <u>Users</u>
+### <ins>Users</ins>
 #### 1. Create User Profile
 It allows you to create a user profile. The requirements vary whether you upload or not a custom profile picture.<br>
 
@@ -135,7 +135,7 @@ If the user credentials are invalid, the API should send back a JSON body with t
 
 ## Authenticated Users
 *[All requests made from here on need to be sent along with an **Authorization Header**, the value of this Header must be the **token** the API sent back to the client when logging in]*
-### <u>Users</u>
+### <ins>Users</ins>
 #### 1. Log Out
 It allows you to log out. The requirements don't vary depending on the situation.<br>
 
@@ -254,7 +254,7 @@ It allows you to delete the logged-in user. The requirements don't vary dependin
 - **Requirements**:
     - Do not send any bodies nor objects.
     - The "hierarchyLevelId" field of your profile **must** be 2. <br>
-    *[2 -> <u>Regular User</u>, 1 -> <u>Administrator</u>]*.
+    *[2 -> <ins>Regular User</ins>, 1 -> <ins>Administrator</ins>]*.
 
 **Expected response:**<br>
 If everything went well, the API should send back a JSON body similar to the following and a **200** status code.
@@ -377,7 +377,7 @@ It allows you to delete the profile of any user. The requirements don't vary dep
 - **Requirements**:
     - Do not send any bodies nor objects.
     - The "hierarchyLevelId" field of your profile **must** be 1.<br>
-    *[2 -> <u>Regular User</u>, 1 -> <u>Administrator</u>].*<br>
+    *[2 -> <ins>Regular User</ins>, 1 -> <ins>Administrator</ins>].*<br>
     *[**JUST** an Administrator has access to this endpoint].*
     - The "userId" field of your profile **must** be different than the id sent in the path. <br>
     *[An Administrator **cannot** delete their own profile. To do so, they need to execute a query in the database manually].*
@@ -421,7 +421,7 @@ If the "hierarchyLevelId" field of the profile of the user with the id sent in t
 **Note:**  
 *[You can send an object (JSON or form-data). However, it will not be taken into account because it is not useful in this request]*
 
-### <u>Posts</u>
+### <ins>Posts</ins>
 
 #### 1. Create Post
 It allows you to create a post. The requirements vary whether you attach or not images to the post.<br>
@@ -641,7 +641,7 @@ It allows you to delete a post. The requirements vary whether you want to delete
     - Do not send any bodies nor objects.
     - The "userId" field of your profile **must** be different than the "userId" field of the post to delete.<br>
     - The "hierarchyLevelId" field of your profile **must** be 1.<br>
-    *[2 -> <u>Regular User</u>, 1 -> <u>Administrator</u>].*<br>
+    *[2 -> <ins>Regular User</ins>, 1 -> <ins>Administrator</ins>].*<br>
     *[**JUST** an Administrator can delete other users' posts].*
 
 **Expected response:**<br>
@@ -664,7 +664,7 @@ If the "userId" field of the post is not the same as the "userId" field of your 
 *[You can send an object (JSON or form-data). However, it will not be taken into account because it is not useful in this request]*
 
 
-### <u>Comments</u>
+### <ins>Comments</ins>
 
 A Key concept that will be often used in this section is the difference between **main comments** and **replies**:
 1. **Main comment.**
@@ -976,7 +976,7 @@ It allows you to delete a comment. The requirements vary whether you want to del
     - Do not send any bodies nor objects.
     - The "userId" field of your profile **must** be different than the "userId" field of the post to delete.<br>
     - The "hierarchyLevelId" field of your profile **must** be 1.<br>
-    *[2 -> <u>Regular User</u>, 1 -> <u>Administrator</u>].*<br>
+    *[2 -> <ins>Regular User</ins>, 1 -> <ins>Administrator</ins>].*<br>
     *[**JUST** an Administrator can delete other users' comments].*
 
 **Expected response:**<br>
@@ -998,18 +998,18 @@ If the "userId" field of the comment is not the same as the "userId" field of yo
 **Note:**  
 *[You can send an object (JSON or form-data). However, it will not be taken into account because it is not useful in this request]*
 
-### <u>Comment Reactions</u>
+### <ins>Comment Reactions</ins>
 
 A Key concept to know is that a comment Reaction as such have two fields when created:
 1. **isLike.**
     - It indicates whether a comment Reaction is a like or not.
     - Its data type is BIT.<br>
-    *[0 -> <u>it is not a like</u>, 1 -> <u>it is a like</u>]*
+    *[0 -> <ins>it is not a like</ins>, 1 -> <ins>it is a like</ins>]*
 
 2. **isDislike.**
     - It indicates whether a comment Reaction is a dislike or not.
     - Its data type is BIT.<br>
-    *[0 -> <u>it is not a dislike</u>, 1 -> <u>it is a dislike</u>]*
+    *[0 -> <ins>it is not a dislike</ins>, 1 -> <ins>it is a dislike</ins>]*
 
 *[In case both fields are equals 0, it will mean the comment Reaction it is neither a like nor a dislike.]*<br>
 *[There will not ever be a double reaction such as a isDislike = 1 and a isLike = 1. The Database optimizations (stored procedures and triggers) will make sure of it].*
