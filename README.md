@@ -1116,3 +1116,7 @@ If no comment Reaction of the logged-in user to the comment exists, the API shou
 
 **Note:**  
 *[You can send an object (JSON or form-data). However, it will not be taken into account because it is not useful in this request]*
+
+
+## Implementation
+If you would like to see an example of the consumption of this API. Feel free to visit this [repository](https://github.com/Sly-Perez/React-forum-client-JWT) in which you will find a sample of the functionalities this API can give you.
