@@ -383,7 +383,7 @@ class UserController{
 
         $username = htmlspecialchars(trim($data['username'] ?? ""), ENT_NOQUOTES, 'UTF-8');
         $email = htmlspecialchars(trim($data['email'] ?? ""), ENT_NOQUOTES, 'UTF-8');
-        $password = htmlspecialchars(trim($data['username'] ?? ""), ENT_NOQUOTES, 'UTF-8');
+        $password = htmlspecialchars(trim($data['password'] ?? ""), ENT_NOQUOTES, 'UTF-8');
         
         if($image !== NULL && !empty($image['name']) && ($image['error'] === 0)){
             
