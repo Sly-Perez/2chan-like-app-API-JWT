@@ -1246,6 +1246,20 @@ If no comment Reaction of the logged-in user to the comment exists, the API shou
 **Note:**  
 *[You can send an object (JSON or form-data). However, it will not be taken into account because it is not useful in this request]*
 
+**Expected Response**:<br>
+If anything goes wrong with a request made by the user, the response will always return a JSON object similar to the following along with the corresponding status code of the error.
+```
+[Content-Type: "application/json"]
+{
+    "errors": [
+        "error1"
+    ]
+}
+```
+
+**Note:**<br>
+*[this way of handling exceptions facilitates the consumption of the API from client apps]*
+
 
 ## Implementation
 If you would like to see an example of the consumption of this API. Feel free to visit this [repository](https://github.com/Sly-Perez/React-forum-client-JWT) in which you will find a sample of the functionalities this API can give you.
