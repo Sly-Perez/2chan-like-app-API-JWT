@@ -16,6 +16,14 @@ spl_autoload_register(function($class){
     else if(str_contains($class, "Handler")){
         require_once(ROOT_PATH . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'handler' . DIRECTORY_SEPARATOR . "$class.php");
     }
+    else if(str_contains($class, "PHPMailer") || str_contains($class, "SMTP") || str_contains($class, "Exception")){
+        require_once(ROOT_PATH . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'libraries' .  DIRECTORY_SEPARATOR . "PHPMailer" . DIRECTORY_SEPARATOR . "src" . DIRECTORY_SEPARATOR . "PHPMailer.php");
+        require_once(ROOT_PATH . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'libraries' .  DIRECTORY_SEPARATOR . "PHPMailer" . DIRECTORY_SEPARATOR . "src" . DIRECTORY_SEPARATOR . "SMTP.php");
+        require_once(ROOT_PATH . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'libraries' .  DIRECTORY_SEPARATOR . "PHPMailer" . DIRECTORY_SEPARATOR . "src" . DIRECTORY_SEPARATOR . "Exception.php");
+    }
+    else if(str_contains($class, "Templates")){
+        require_once(ROOT_PATH . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'templates' .  DIRECTORY_SEPARATOR . "$class.php");
+    }
 });
 
 header("Content-type: application/json");
@@ -66,6 +74,12 @@ if(array_key_exists(3, $parts)){
             break;
         case "popular":
             $url = "popular";
+            break;
+        case "emails":
+            $url = "emails";
+            break;
+        case "emailResends":
+            $url = "emailResends";
             break;
         default:
             $url = NULL;
@@ -127,19 +141,33 @@ $userController = new UserController($userGateway);
 
 $jwtIsValid = $userController->validateJWTMiddleware();
 
-if(($parts[2] === "users" && $url != NULL) && ($_SERVER['REQUEST_METHOD'] === "POST") && ($url === "login" || $url === "signup")){
+if($_SERVER['REQUEST_METHOD'] === "POST"){
 
-    if($jwtIsValid){
-        http_response_code(400);
-        echo json_encode([
-            "errors"=>["Your session has not expired yet"]
-        ]);
+    if( ($parts[2] === "users") && ($url === "login" || $url === "signup") ){
+        if($jwtIsValid){
+            http_response_code(400);
+            echo json_encode([
+                "errors"=>["Your session has not expired yet"]
+            ]);
+        }
+        else{
+            $userController->processRequest($_SERVER['REQUEST_METHOD'], $id, $url);
+        }
+        return;
     }
-    else{
-        $userController->processRequest($_SERVER['REQUEST_METHOD'], $id, $url);
+    else if($parts[2] === "verifications"){
+        if($jwtIsValid){
+            http_response_code(400);
+            echo json_encode([
+                "errors"=>["Your session has not expired yet. Cannot verify email address while being in session"]
+            ]);
+        }
+        else{
+            $verificationController = new VerificationController($userGateway, $userController);
+            $verificationController->processRequest($_SERVER['REQUEST_METHOD'], $id, $url);
+        }
+        return;
     }
-
-    return;
 }
 
 if(!$jwtIsValid){

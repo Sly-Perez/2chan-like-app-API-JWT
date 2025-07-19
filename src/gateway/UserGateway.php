@@ -25,6 +25,24 @@ class UserGateway{
 
         return $data;
     }
+
+    public function getInactiveByEmail(string $email): array | false{
+        $sql = "SELECT
+                    * 
+                FROM users 
+                WHERE (email=:email) AND (state=:state)";
+
+        $stmt = $this->dbCon->prepare($sql);
+
+        $stmt->bindValue(":email", $email, PDO::PARAM_STR);
+        $stmt->bindValue(":state", 0, PDO::PARAM_INT);
+
+        $stmt->execute();
+
+        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $data;
+    }
     
     //it can return an array (if it exists) or false (if it does not)
     public function getById(string $id, bool $email_will_display = false): array | false{
@@ -46,6 +64,33 @@ class UserGateway{
 
         $stmt->bindValue(":userId", $id, PDO::PARAM_INT);
         $stmt->bindValue(":state", 1, PDO::PARAM_INT);
+
+        $stmt->execute();
+
+        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $data;
+    }
+
+    public function getInactiveById(string $id, bool $email_will_display = false): array | false{
+        $sql =  $email_will_display 
+                ? "SELECT
+                    userId, username, email,
+                    picture, joinedAt,
+                    amountOfPosts, hierarchyLevelId 
+                FROM users 
+                WHERE (userId=:userId) AND (state=:state)"
+                : "SELECT
+                    userId, username,
+                    picture, joinedAt,
+                    amountOfPosts, hierarchyLevelId 
+                FROM users 
+                WHERE (userId=:userId) AND (state=:state)";
+
+        $stmt = $this->dbCon->prepare($sql);
+
+        $stmt->bindValue(":userId", $id, PDO::PARAM_INT);
+        $stmt->bindValue(":state", 0, PDO::PARAM_INT);
 
         $stmt->execute();
 
@@ -90,6 +135,19 @@ class UserGateway{
             throw $e;
         }
         
+    }
+
+    public function activateUser(string $userId): void{
+        $sql = "UPDATE users
+                    SET state=:state
+                    WHERE userId=:userId";
+        
+        $stmt = $this->dbCon->prepare($sql);
+
+        $stmt->bindValue(":state", 1, PDO::PARAM_INT);
+        $stmt->bindValue(":userId", $userId, PDO::PARAM_INT);
+
+        $stmt->execute();
     }
 
     public function setUserToken(array $data, string $token): void{

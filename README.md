@@ -4,14 +4,15 @@ This version of the API works with JSON WEB TOKEN's to handle sessions.
 
 ## Business Rules
 - **Profiles**:
-    - Only users with a profile can access to the endpoints of the api.
     - All User Profiles require a username, email and password.
     - The username of a user must not start with a number.
     - The username of a user can be, at most, 30 characters, and it can contain unicode characters.
     - The email of a user can be, at most, 100 characters, and it must not contain unicode characters.
+    - The email of a user needs to be valid. An email will be sent to their address to enable their created accounts.
+    - The email of a user cannot belong to another active user.
     - The password of a user can be, at most, 30 characters, and it can contain unicode characters. **Do Not** add any of the following special characters: "<", ">", "&". They will be sanitized and transformed to HTML entities. Example; "&" => &amp;. If you do so, your password will be different as the one you set in a beginning.
-    - The inclusion of a custom profile picture is optional. A User will have a blank picture like other social media apps (facebook, etc.) by default.
-    - In case there is the inclusion of a custom profile picture: The allowed formats are: "jpeg", "jpg", "webp", "gif" or "png".
+    - The inclusion of a custom profile picture is optional. A User will have a blank picture like any other social media apps (facebook, etc.) by default.
+    - In case there is the inclusion of a custom profile picture: The allowed formats are: "jpeg", "jpg", "webp", "gif" or "png", and it must be a square (same width as height).
 
 - **Posts**:
     - All posts require a header and a description.
@@ -28,7 +29,9 @@ This version of the API works with JSON WEB TOKEN's to handle sessions.
 
 
 ## Tools Used:
-This API was developed in **Plain/Vanilla PHP**, no third-party libraries used.
+This API was developed mainly in **Plain/Vanilla PHP**. It uses the following libraries: <br>
+1. **PHPMailer**
+    - Used to send emails to users such as account verification emails, etc.
 
 ## Documentation
 You have access to many endpoints. In the following document, we will show the endpoints available in the API, as well as their requirements and expected responses; They will be split into 2 categories:
@@ -68,19 +71,25 @@ It allows you to create a user profile. The requirements vary whether you upload
     - Send the form-data object to the endpoint.
 
 **Expected response:**<br>
-If everything went well, the API should send back the basic information of the created user and a **201** status code.
+If everything went well, the API should send back the basic information of the created user and a message like the following example, and a **201** status code. Now, they should receive an email with the instructions to verify their account.
 ```
 [Content-Type: "application/json"]
 {
-    "userId": 17,
-    "username": "test1",
-    "picture": "blank-profile-picture.webp",
-    "joinedAt": "2025-03-30 13:30:56",
-    "amountOfPosts": 0,
-    "hierarchyLevelId": 2
+    "user": {
+        "userId": 17,
+        "username": "test1",
+        "email": "test1@example.ca",
+        "picture": "blank-profile-picture.webp",
+        "joinedAt": "2025-03-30 13:30:56",
+        "amountOfPosts": 0,
+        "hierarchyLevelId": 2
+    },
+    "message": [
+        "Account created. Please, check your inbox to verify your email address te***@example.ca"
+    ]
 }
 ```
-**Expected exception response:**<br>
+**Expected exception response 1:**<br>
 If any of the fields of the given data is invalid, the API should send back a JSON body with the information of the error and a **400** status code.
 ```
 [Content-Type: "application/json"]
@@ -88,6 +97,16 @@ If any of the fields of the given data is invalid, the API should send back a JS
     "errors": ["error1", "error2", "error3"]
 }
 ```
+
+**Expected exception response 2:**<br>
+If something went wrong while sending the verification email, the API should send back a JSON body with a generic internal server error message and a **500** status code.
+```
+[Content-Type: "application/json"]
+{
+    "errors": ["Error while creating account. Please try again or come back later."]
+}
+```
+
 **Note:**  
 *[You can send a form-data object in both scenarios. However, the appended JSON object **must** be named "jsonBody"]*
 
@@ -131,6 +150,114 @@ If the user credentials are invalid, the API should send back a JSON body with t
 **Note:**<br> 
 *[The **token** will be different than the example]*<br> 
 *[You can also send a form-data object. However, the appended JSON object **must** be named "jsonBody]*
+
+
+#### 3. Verify email address (unusable)
+It allows you to activate a recently created user account by verifying their email address. While it can technically be used,  the Original link sent in the verification email by the API takes well care of it. The requirements don't vary.<br>
+
+**POST Request to endpoint:**<br>
+/verifications/emails
+
+- **Requirements**:
+    - Build a JSON body with the mandatory data for veryfing a user profile: verificationToken.<br>
+    *[This "verificationToken" is generated automatically by the API and sent along with the verification link in the verification email]*<br>
+    - Send the JSON body directly as a JSON object to the endpoint. <br>
+
+**Example :**
+```
+{
+    "verificationToken": "abcdefgh990"
+}
+```
+
+**Expected response:**<br>
+If everything went well, the API should send back a message like the following example and a **200** status code.
+```
+[Content-Type: "application/json"]
+{
+    "message": ["Email address verified successfully. Go ahead and Log in!"]
+}
+```
+**Expected exception response:**<br>
+If the verification token sent in the body is invalid *[which suggests that the user profile to which the verificationToken is associated is already active, the structure of the verificationToken is invalid (created by anyone to fool the API) or the verificationToken expired already (verificationTokens are valid for two hours)]*, the API should send back a JSON body with the information of the error and a **400** status code.
+```
+[Content-Type: "application/json"]
+{
+    "errors": ["Verification Token is Invalid"]
+}
+```
+
+**Note:**  
+*[You can send a form-data object in both scenarios. However, the appended JSON object **must** be named "jsonBody"]*
+
+
+#### 4. Re-send email verification
+It allows you to re-send the email verification to a to-be-verified user. The requirements don't vary.<br>
+
+**POST Request to endpoint:**<br>
+/verifications/emailResends
+
+- **Requirements**:
+    - Build a JSON body with the mandatory data for re-sending an email verification: userId (The recipient user id).<br>
+    - Send the JSON body directly as a JSON object to the endpoint. <br>
+
+**Example :**
+```
+{
+    "userId": 17
+}
+```
+
+**Expected response:**<br>
+If everything went well, the API should send back the basic information of the recipient user and a message like the following example, and a **200** status code. Now, they should receive an email with the instructions to verify their account.
+```
+[Content-Type: "application/json"]
+{
+    "user": {
+        "userId": 17,
+        "username": "test1",
+        "email": "test1@example.ca",
+        "picture": "blank-profile-picture.webp",
+        "joinedAt": "2025-03-30 13:30:56",
+        "amountOfPosts": 0,
+        "hierarchyLevelId": 2
+    },
+    "message": [
+        "Email was re-sent successfully. Please, check your inbox to verify your email address te***@example.ca"
+    ]
+}
+```
+
+**Expected exception response 1:**<br>
+If the userId field is not sent or is null, the API should send back a JSON body with a message like the following example and a **400** status code.
+```
+[Content-Type: "application/json"]
+{
+    "errors": ["The recipient User Id is required"]
+}
+```
+
+**Expected exception response 2:**<br>
+If a to-be-verified user with the given userId does not exist, the API should send back a JSON body with the information of the error and a **404** status code.
+```
+[Content-Type: "application/json"]
+{
+    "errors": ["To-be-verified User with id fakeid was not found"]
+}
+```
+
+**Expected exception response 3:**<br>
+If something went wrong while re-sending the verification email, the API should send back a JSON body with a generic internal server error message and a **500** status code.
+```
+[Content-Type: "application/json"]
+{
+    "errors": ["Error while re-sending email. Please try again or come back later."]
+}
+```
+
+**Note:**  
+*[You can send a form-data object in both scenarios. However, the appended JSON object **must** be named "jsonBody"]*
+
 
 
 

@@ -1,5 +1,8 @@
 <?php
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
+
 class UserController{
 
     private UserGateway $gateway;
@@ -235,9 +238,38 @@ class UserController{
                         }
                         
                         $returnedId = $this->gateway->add($sanitizedData, $pictureIsUploaded);
+                        
+                        $user = $this->gateway->getInactiveById($returnedId, true);
+                        
+
+                        $emailWasSent = $this->sendMail($user);
+
+
+                        if(!$emailWasSent){
+                            http_response_code(500);
+                            echo json_encode([
+                                "errors"=>["Error while creating account. Please try again or come back later."]
+                            ]);
+                            return;
+                        }
+
+                        //we'll split the user email
+                        $emailSplit = explode("@", $user["email"]);
+                        
+                        $localPart = $emailSplit[0];
+                        $domainPart = "@" . $emailSplit[1];
+                        //$localPart => example, $emailSplit => @gmail.com
+                        
+                        //we show the two first characters of the user email, asterisks to fill the rest and the domain of the user email
+                        //ex . **** . @gmail.com
+                        // ex*****@gmail.com
+                        $emailMasked = substr($localPart, 0, 2) . str_repeat("*", strlen($localPart) - 2) . $domainPart;
+                        
                         http_response_code(201);
-                        $user = $this->gateway->getById($returnedId);
-                        echo json_encode($user);
+                        echo json_encode([
+                            "user"=>$user,
+                            "message"=>["Account created. Please, check your inbox to verify your email address $emailMasked"]
+                        ]);
                         
                         break;
                     case "logout":
@@ -492,16 +524,23 @@ class UserController{
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
-    private function generateJWT(string $userId):string{
+    protected function generateJWT(string $userId, bool $is_for_email_verification = false):string{
 
         $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
         $base64UrlHeader = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($header));
-    
-        $uuid = $this->generateUUID();
-        $payload = json_encode(['userId' => $userId, 'exp' => time() + 3600, 'jti' => $uuid]);
+        $secretKey = $is_for_email_verification ? 'secret-key-that-no-one-knows-email' : 'secret-key-that-no-one-knows';
+
+        if($is_for_email_verification){
+            $payload = json_encode(['userId' => $userId, 'exp' => time() + 7200]);
+        }
+        else{
+            $uuid = $this->generateUUID();
+            $payload = json_encode(['userId' => $userId, 'exp' => time() + 3600, 'jti' => $uuid]);
+        }
+
         $base64UrlPayload = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($payload));
     
-        $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, 'secret-key-that-no-one-knows', true);
+        $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, $secretKey, true);
         $base64UrlSignature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
     
         $jwt = $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
@@ -626,6 +665,73 @@ class UserController{
         }
 
         return $user;
+    }
+
+    //send email of confirmation
+    public function sendMail(array $user): bool{
+
+        $mail = new PHPMailer(true);
+        $HTMLTemplates = new HTMLTemplates();
+        $NonHTMLTemplates = new NonHTMLTemplates();
+
+        
+        try {
+            //Server settings
+            
+            //(JUST FOR DEV)
+            //enable debug of email sending process:
+            //$mail->SMTPDebug = SMTP::DEBUG_SERVER;
+            //(JUST FOR DEV)
+            $mail->SMTPDebug = 0;
+            
+            $mail->isSMTP();                                           //Send using SMTP
+            
+            $mail->Host       = 'smtp-host';                     //Set the SMTP server to send through
+            $mail->SMTPAuth   = true;                                   //Enable SMTP authentication
+            $mail->Username   = 'sender-email-address';                     //SMTP username
+            $mail->Password   = 'sender-email-password';                               //SMTP password
+            
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+            $mail->Port       = 465;
+            
+            /* (ALTERNATIVE) for when SMTP fails
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port       = 587;
+            (ALTERNATIVE) for when SMTP fails */
+            
+            /*  (JUST FOR DEV)*/
+            $mail->SMTPOptions = [
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                    'allow_self_signed' => true,
+                ],
+            ];
+            /*(JUST FOR DEV) */
+            
+            //Recipients
+            $mail->setFrom('sender-email-address', 'Weekie Mochi');
+            $mail->addAddress($user["email"], $user["username"]);
+            
+            
+            //We create a token to verify their email
+            $verificationToken = $this->generateJWT($user["userId"], true);
+            
+            $emailVerificationHTML = $HTMLTemplates->getVerificationEmailTemplate($user, $verificationToken);
+            $emailVerificationNonHTML = $NonHTMLTemplates->getVerificationEmailTemplate($user, $verificationToken);
+
+            //Content
+            $mail->isHTML(true);
+            $mail->Subject = 'Email Verification - New Account';
+            $mail->Body = $emailVerificationHTML;
+            $mail->AltBody = $emailVerificationNonHTML;
+
+            return $mail->send();
+        } catch (\Throwable $th) {
+            
+            return false;
+        }
+
     }
     
 }
