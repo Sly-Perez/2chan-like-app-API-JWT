@@ -26,6 +26,42 @@ class UserGateway{
         return $data;
     }
 
+    public function getByEmailOrUsername(string $emailOrUsername): array | false{
+        $sql = "SELECT
+                    * 
+                FROM users 
+                WHERE ((email=:emailOrUsername) OR (username=:emailOrUsername)) AND (state=:state)";
+
+        $stmt = $this->dbCon->prepare($sql);
+
+        $stmt->bindValue(":emailOrUsername", $emailOrUsername, PDO::PARAM_STR);
+        $stmt->bindValue(":state", 1, PDO::PARAM_INT);
+
+        $stmt->execute();
+
+        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $data;
+    }
+
+    public function getByUsername(string $username): array | false{
+        $sql = "SELECT
+                    * 
+                FROM users 
+                WHERE (username=:username) AND (state=:state)";
+
+        $stmt = $this->dbCon->prepare($sql);
+
+        $stmt->bindValue(":username", $username, PDO::PARAM_STR);
+        $stmt->bindValue(":state", 1, PDO::PARAM_INT);
+
+        $stmt->execute();
+
+        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $data;
+    }
+
     public function getInactiveByEmail(string $email): array | false{
         $sql = "SELECT
                     * 

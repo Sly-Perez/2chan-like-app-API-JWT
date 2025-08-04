@@ -175,14 +175,14 @@ class UserController{
                     case "login":
                         $data = isset($_POST['jsonBody']) ? json_decode($_POST['jsonBody'], true) : json_decode(file_get_contents("php://input"), true);
 
-                        $sanitizedData = $this->getSanitizedInputData($data ?? NULL, NULL);
+                        $sanitizedData = $this->getSanitizedInputData($data ?? NULL, NULL, false, true);
 
-                        $user = $this->gateway->getByEmail($sanitizedData['email']);
+                        $user = $this->gateway->getByEmailOrUsername($sanitizedData['emailOrUsername']);
 
                         if(!$user){
                             http_response_code(401);
                             echo json_encode([
-                                "errors"=>["Email or Password Invalid"]
+                                "errors"=>["Email/username or Password Invalid"]
                             ]);
                             return;
                         }
@@ -199,7 +199,7 @@ class UserController{
                         else{
                             http_response_code(401);
                             echo json_encode([
-                                "errors"=>["Email or Password Invalid"]
+                                "errors"=>["Email/username or Password Invalid"]
                             ]);
                         }
 
@@ -221,9 +221,21 @@ class UserController{
                             return;
                         }
                         
-                        $userDB = $this->gateway->getByEmail($sanitizedData["email"]);
+                        //see if the username is registered already
+                        $userByUsername = $this->gateway->getByUsername($sanitizedData["username"]);
                         
-                        if($userDB !== false){
+                        if($userByUsername !== false){
+                            http_response_code(400);
+                            echo json_encode([
+                                "errors"=>["Username already registered"]
+                            ]);
+                            return;
+                        }
+
+                        //see if the email is registered already
+                        $userByEmail = $this->gateway->getByEmail($sanitizedData["email"]);
+                        
+                        if($userByEmail !== false){
                             http_response_code(400);
                             echo json_encode([
                                 "errors"=>["Email already registered"]
@@ -318,6 +330,21 @@ class UserController{
                         }                
                         
                         
+                        //in case the user sent a new username to be updated, we will check if another user with the same username already exists
+                        if($sanitizedData["username"] !== NULL){
+
+                            $userFoundByUsername = $this->gateway->getByUsername($sanitizedData["username"]);
+                            //we take into account that if it is about the same user (requester), it will not affect anything
+                            if( ($userFoundByUsername !== false) && ($userFoundByUsername['userId'] !== $userDB['userId']) ){
+                                http_response_code(400);
+                                echo json_encode([
+                                    "errors"=>["Username already registered"]
+                                ]);
+                                return;
+                            }
+
+                        }
+
                         //in case the user sent a new email to be updated, we will check if another user with the same email already exists
                         if($sanitizedData["email"] !== NULL){
 
@@ -411,7 +438,15 @@ class UserController{
         return !preg_match('/[^\x00-\x7F]/', $string);
     }
 
-    private function getSanitizedInputData(?array $data, ?array $image, bool $is_updated = false):array{
+    private function getSanitizedInputData(?array $data, ?array $image, bool $is_updated = false, bool $is_for_login = false):array{
+
+        $sanitizedData = [];
+
+        if($is_for_login){
+            $emailOrUsername = htmlspecialchars(trim($data['emailOrUsername'] ?? ""), ENT_NOQUOTES, 'UTF-8');
+
+            $sanitizedData['emailOrUsername'] = $emailOrUsername;
+        }
 
         $username = htmlspecialchars(trim($data['username'] ?? ""), ENT_NOQUOTES, 'UTF-8');
         $email = htmlspecialchars(trim($data['email'] ?? ""), ENT_NOQUOTES, 'UTF-8');
@@ -422,8 +457,6 @@ class UserController{
             $picture = $image;
             
         }
-
-        $sanitizedData = [];
         
         if($is_updated){
             $sanitizedData['username'] = isset($data['username']) ? $username : NULL;

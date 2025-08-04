@@ -5,6 +5,7 @@ This version of the API works with JSON WEB TOKEN's to handle sessions.
 ## Business Rules
 - **Profiles**:
     - All User Profiles require a username, email and password.
+    - The username of a user cannot belong to another active user.
     - The username of a user must not start with a number.
     - The username of a user can be, at most, 30 characters, and it can contain unicode characters.
     - The email of a user can be, at most, 100 characters, and it must not contain unicode characters.
@@ -117,13 +118,14 @@ It allows you to log in with user credentials. The requirements don't vary depen
 /users/login
 
 - **Requirements**:
-    - Build a JSON body with the mandatory data to log in: username, email.
+    - Build a JSON body with the mandatory data to log in: email/username, password. <br>
+    *[You can send either the email or username of the user in the request body. In any case, the field must be called "emailOrUsername"]*<br>
     - Send the JSON body directly as a JSON object to the endpoint. <br>
 
 **Example :**
 ```
 {
-    "email": "test1@example.ca",
+    "emailOrUsername": "test1@example.ca",
     "password": "test1pass"
 }
 ```
