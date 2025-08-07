@@ -251,7 +251,7 @@ class UserController{
                         
                         $returnedId = $this->gateway->add($sanitizedData, $pictureIsUploaded);
                         
-                        $user = $this->gateway->getInactiveById($returnedId, true);
+                        $user = $this->gateway->getToBeVerifiedById($returnedId, true);
                         
 
                         $emailWasSent = $this->sendMail($user);

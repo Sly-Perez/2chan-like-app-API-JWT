@@ -82,7 +82,7 @@ class VerificationController{
 
                         switch ($data["purpose"]) {
                             case 'verifyEmail':
-                                $user = $this->userGateway->getInactiveById($data["userId"], true);
+                                $user = $this->userGateway->getToBeVerifiedById($data["userId"], true);
 
                                 if(!$user){
                                     http_response_code(404);
@@ -248,8 +248,20 @@ class VerificationController{
         }
         else{
             $secretKey = 'secret-key-that-no-one-knows-email';
-            
-            $userDB = $this->userGateway->getInactiveById($payload['userId'], true);
+
+            //we get to-be-verified user:
+            $userDB = $this->userGateway->getToBeVerifiedById($payload['userId'], true);
+                
+            if($userDB != false){
+                //We need to make sure there isn't any active accounts with the email and username of the to-be-verified user.
+                //If an active account exists, the verification token will automatically be invalid.
+                $userWithSameEmail = $this->userGateway->getByEmail($userDB['email']);
+                $userWithSameUsername = $this->userGateway->getByUsername($userDB['username']);
+
+                if( ($userWithSameEmail != false) || ($userWithSameUsername != false) ){
+                    return false;
+                }
+            }
         }
         
         if(!$userDB){
@@ -276,7 +288,19 @@ class VerificationController{
             $user = $this->userGateway->getById($payload['userId'], true);
         }
         else{
-            $user = $this->userGateway->getInactiveById($payload['userId'], true);
+            //we get to-be-verified user:
+            $user = $this->userGateway->getToBeVerifiedById($payload['userId'], true);
+                
+            if($user != false){
+                //We need to make sure there isn't any active accounts with the email of the to-be-verified user.
+                //If an active account exists, the verification token will automatically be invalid.
+                $userWithSameEmail = $this->userGateway->getByEmail($user['email']);
+                $userWithSameUsername = $this->userGateway->getByUsername($user['username']);
+
+                if( ($userWithSameEmail != false) || ($userWithSameUsername != false) ){
+                    return false;
+                }
+            }
         }
 
         return $user;

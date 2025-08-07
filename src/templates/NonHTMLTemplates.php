@@ -3,7 +3,7 @@
 class NonHTMLTemplates{
 
     public function getVerificationEmailTemplate(array $user, string $verificationToken): string{
-        $redirectUrl = "http://localhost:5173/users/verify/$verificationToken";
+        $redirectUrl = "https://weekiemochi.com/users/verify/$verificationToken";
 
         return "
             Hi, {$user["username"]}, thank you for signing up on Weekie mochi!
@@ -12,7 +12,7 @@ class NonHTMLTemplates{
     }
 
     public function getConfirmPasswordChangeTemplate(array $user, string $verificationToken): string{
-        $redirectUrl = "http://localhost:5173/users/changePassword/$verificationToken";
+        $redirectUrl = "https://weekiemochi.com/users/changePassword/$verificationToken";
 
         return "
             Hi, {$user["username"]}, we received a request from you to change your password.

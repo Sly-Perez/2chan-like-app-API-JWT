@@ -108,25 +108,26 @@ class UserGateway{
         return $data;
     }
 
-    public function getInactiveById(string $id, bool $email_will_display = false): array | false{
+    public function getToBeVerifiedById(string $id, bool $email_will_display = false): array | false{
         $sql =  $email_will_display 
                 ? "SELECT
                     userId, username, email,
                     picture, joinedAt,
                     amountOfPosts, hierarchyLevelId 
                 FROM users 
-                WHERE (userId=:userId) AND (state=:state)"
+                WHERE (userId=:userId) AND (state=:state) AND (emailIsVerified=:emailIsVerified)"
                 : "SELECT
                     userId, username,
                     picture, joinedAt,
                     amountOfPosts, hierarchyLevelId 
                 FROM users 
-                WHERE (userId=:userId) AND (state=:state)";
+                WHERE (userId=:userId) AND (state=:state) AND (emailIsVerified=:emailIsVerified)";
 
         $stmt = $this->dbCon->prepare($sql);
 
         $stmt->bindValue(":userId", $id, PDO::PARAM_INT);
         $stmt->bindValue(":state", 0, PDO::PARAM_INT);
+        $stmt->bindValue(":emailIsVerified", 0, PDO::PARAM_INT);
 
         $stmt->execute();
 
@@ -175,12 +176,15 @@ class UserGateway{
 
     public function activateUser(string $userId): void{
         $sql = "UPDATE users
-                    SET state=:state
+                    SET 
+                        state=:state, 
+                        emailIsVerified=:emailIsVerified
                     WHERE userId=:userId";
         
         $stmt = $this->dbCon->prepare($sql);
 
         $stmt->bindValue(":state", 1, PDO::PARAM_INT);
+        $stmt->bindValue(":emailIsVerified", 1, PDO::PARAM_INT);
         $stmt->bindValue(":userId", $userId, PDO::PARAM_INT);
 
         $stmt->execute();

@@ -74,7 +74,7 @@ class HTMLTemplates{
 
     public function getConfirmPasswordChangeTemplate(array $user, string $verificationToken): string{
 
-        $redirectUrl = "http://localhost:5173/users/changePassword/$verificationToken";
+        $redirectUrl = "https://weekiemochi.com/users/changePassword/$verificationToken";
         $currentYear = date("Y");
 
         return <<<HTML
