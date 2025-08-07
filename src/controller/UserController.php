@@ -345,21 +345,6 @@ class UserController{
 
                         }
 
-                        //in case the user sent a new email to be updated, we will check if another user with the same email already exists
-                        if($sanitizedData["email"] !== NULL){
-
-                            $userFound = $this->gateway->getByEmail($sanitizedData["email"]);
-                            //we take into account that if it is about the same user (requester), it will not affect anything
-                            if( ($userFound !== false) && ($userFound['userId'] !== $userDB['userId']) ){
-                                http_response_code(400);
-                                echo json_encode([
-                                    "errors"=>["Email already registered"]
-                                ]);
-                                return;
-                            }
-
-                        }
-
 
                         if($sanitizedData['picture'] !== NULL){
                             $sanitizedData['picture'] = $this->uploadPicture($sanitizedData['picture']);
@@ -370,6 +355,61 @@ class UserController{
                         
                         $user = $this->gateway->getById($userDB["userId"], true);
                         echo json_encode($user);
+                        break;
+                    case "my/password":
+                        //user needs to send their email in the body
+                        $data = isset($_POST['jsonBody']) ? json_decode($_POST['jsonBody'], true) : json_decode(file_get_contents("php://input"), true);
+                        
+                        $sanitizedData = $this->getSanitizedInputData($data ?? NULL, NULL);
+
+                        $errors = $this->getValidationInputErrorsForEmail($sanitizedData);
+
+                        if(count($errors) !== 0){
+                            http_response_code(400);
+                            echo json_encode([
+                                "errors"=>$errors
+                            ]);
+                            return;
+                        }
+
+                        $user = $this->gateway->getByEmail($sanitizedData['email']);
+                        
+                        if(!$user){
+                            http_response_code(404);
+                            echo json_encode([
+                                "errors"=>["Email does not exist"]
+                            ]);
+                            return;
+                        }
+
+                        $emailWasSent = $this->sendMail($user, true);
+
+                        if(!$emailWasSent){
+                            http_response_code(500);
+                            echo json_encode([
+                                "errors"=>["An error occured. Please try again or come back later."]
+                            ]);
+                            return;
+                        }
+
+                        //we'll split the user email
+                        $emailSplit = explode("@", $user["email"]);
+                        
+                        $localPart = $emailSplit[0];
+                        $domainPart = "@" . $emailSplit[1];
+                        //$localPart => example, $emailSplit => @gmail.com
+                        
+                        //we show the three first characters of the user email, asterisks to fill the rest and the domain of the user email
+                        //ex . **** . @gmail.com
+                        // ex*****@gmail.com
+                        $emailMasked = substr($localPart, 0, 2) . str_repeat("*", strlen($localPart) - 2) . $domainPart;
+                        
+                        http_response_code(200);
+                        echo json_encode([
+                            "user"=>$user,
+                            "message"=>["We sent you an email to $emailMasked with the instructions to change your password"]
+                        ]);
+
                         break;
                     default:
                         http_response_code(404);
@@ -438,7 +478,7 @@ class UserController{
         return !preg_match('/[^\x00-\x7F]/', $string);
     }
 
-    private function getSanitizedInputData(?array $data, ?array $image, bool $is_updated = false, bool $is_for_login = false):array{
+    public function getSanitizedInputData(?array $data, ?array $image, bool $is_updated = false, bool $is_for_login = false):array{
 
         $sanitizedData = [];
 
@@ -460,8 +500,8 @@ class UserController{
         
         if($is_updated){
             $sanitizedData['username'] = isset($data['username']) ? $username : NULL;
-            $sanitizedData['email'] = isset($data['email']) ? $email : NULL;
-            $sanitizedData['password'] = isset($data['password']) ? $password : NULL;
+            $sanitizedData['email'] = NULL;
+            $sanitizedData['password'] = NULL;
         }
         else{
             $sanitizedData['username'] = $username;
@@ -550,6 +590,36 @@ class UserController{
         return $errors;
     }
 
+    private function getValidationInputErrorsForEmail(array $data):array{
+        $errors = [];
+
+        $email = $data['email'];
+        
+        //email
+        if($email !== NULL){
+            if(empty($email)){
+                array_push($errors, "The User's email is required");
+            }
+            else if(!(filter_var($email, FILTER_VALIDATE_EMAIL))){
+                array_push($errors, "The User's email: Must be a valid email;");
+            }
+        }
+        
+        return $errors;
+    }
+    public function getValidationInputErrorsForPassword(array $data):array{
+        $errors = [];
+
+        $password = $data['password'];
+        
+        //password
+        if(empty($password) || strlen($password) > 30){
+            array_push($errors, "The User's password: Cannot be empty; Length cannot be greater than 30 characters");
+        }
+    
+        return $errors;
+    }
+
     private function generateUUID() {
         $data = random_bytes(16);
         $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
@@ -557,16 +627,23 @@ class UserController{
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
-    protected function generateJWT(string $userId, bool $is_for_email_verification = false):string{
+    private function generateJWT(string $userId, bool $is_for_email_verification = false, bool $is_for_password_change = false):string{
 
         $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
         $base64UrlHeader = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($header));
-        $secretKey = $is_for_email_verification ? 'secret-key-that-no-one-knows-email' : 'secret-key-that-no-one-knows';
 
         if($is_for_email_verification){
+            $secretKey = 'secret-key-that-no-one-knows-email';
+            //it expires in 2 hours
             $payload = json_encode(['userId' => $userId, 'exp' => time() + 7200]);
         }
+        else if($is_for_password_change){
+            $secretKey = 'secret-key-that-no-one-knows-password';
+            //it expires in 15 minutes
+            $payload = json_encode(['userId' => $userId, 'exp' => time() + 900]);
+        }
         else{
+            $secretKey = 'secret-key-that-no-one-knows';
             $uuid = $this->generateUUID();
             $payload = json_encode(['userId' => $userId, 'exp' => time() + 3600, 'jti' => $uuid]);
         }
@@ -701,7 +778,7 @@ class UserController{
     }
 
     //send email of confirmation
-    public function sendMail(array $user): bool{
+    public function sendMail(array $user, bool $is_for_password_change = false, bool $is_for_notification_password_change = false): bool{
 
         $mail = new PHPMailer(true);
         $HTMLTemplates = new HTMLTemplates();
@@ -747,15 +824,29 @@ class UserController{
             $mail->addAddress($user["email"], $user["username"]);
             
             
-            //We create a token to verify their email
-            $verificationToken = $this->generateJWT($user["userId"], true);
-            
-            $emailVerificationHTML = $HTMLTemplates->getVerificationEmailTemplate($user, $verificationToken);
-            $emailVerificationNonHTML = $NonHTMLTemplates->getVerificationEmailTemplate($user, $verificationToken);
+            //We create a token
+            if($is_for_password_change){
+                $verificationToken = $this->generateJWT($user["userId"], false, true);
+                
+                $emailSubject = 'Instructions - Change your password';
+                $emailVerificationHTML = $HTMLTemplates->getConfirmPasswordChangeTemplate($user, $verificationToken);
+                $emailVerificationNonHTML = $NonHTMLTemplates->getConfirmPasswordChangeTemplate($user, $verificationToken);
+            }
+            else if($is_for_notification_password_change){
+                $emailSubject = 'Changes - Your password was reset';
+                $emailVerificationHTML = $HTMLTemplates->getPasswordChangeNotificationTemplate($user);
+                $emailVerificationNonHTML = $NonHTMLTemplates->getPasswordChangeNotificationTemplate($user);
+            }
+            else{
+                $verificationToken = $this->generateJWT($user["userId"], true);
+                $emailSubject = 'Email Verification - New Account';
+                $emailVerificationHTML = $HTMLTemplates->getVerificationEmailTemplate($user, $verificationToken);
+                $emailVerificationNonHTML = $NonHTMLTemplates->getVerificationEmailTemplate($user, $verificationToken);
+            }
 
             //Content
             $mail->isHTML(true);
-            $mail->Subject = 'Email Verification - New Account';
+            $mail->Subject = $emailSubject;
             $mail->Body = $emailVerificationHTML;
             $mail->AltBody = $emailVerificationNonHTML;
 

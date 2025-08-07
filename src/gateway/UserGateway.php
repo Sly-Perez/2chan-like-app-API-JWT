@@ -243,6 +243,32 @@ class UserGateway{
             throw $e;
         }
     }
+
+    public function updatePasswordById(string $userId, string $newPassword): void{
+        
+        try {
+            $this->dbCon->beginTransaction();
+            
+            $sql = "UPDATE users
+                    SET password=:password
+                    WHERE (userId=:userId) AND (state=:state)";
+
+            $stmt = $this->dbCon->prepare($sql);
+
+            
+            //we don't want to re-hash an already hashed password
+            $stmt->bindValue(":password", password_hash($newPassword, PASSWORD_DEFAULT));
+            $stmt->bindValue(":userId", $userId, PDO::PARAM_INT);
+            $stmt->bindValue(":state", 1, PDO::PARAM_INT);
+
+            $stmt->execute();
+
+            $this->dbCon->commit();
+        } catch (PDOException $e) {
+            $this->dbCon->rollBack();
+            throw $e;
+        }
+    }
     
 
     public function deleteById(string $id): void{

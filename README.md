@@ -14,6 +14,7 @@ This version of the API works with JSON WEB TOKEN's to handle sessions.
     - The password of a user can be, at most, 30 characters, and it can contain unicode characters. **Do Not** add any of the following special characters: "<", ">", "&". They will be sanitized and transformed to HTML entities. Example; "&" => &amp;. If you do so, your password will be different as the one you set in a beginning.
     - The inclusion of a custom profile picture is optional. A User will have a blank picture like any other social media apps (facebook, etc.) by default.
     - In case there is the inclusion of a custom profile picture: The allowed formats are: "jpeg", "jpg", "webp", "gif" or "png", and it must be a square (same width as height).
+    - Once created a user profile, the owner will just be able to edit their username, password (with verification emails for security) and profile picture.
 
 - **Posts**:
     - All posts require a header and a description.
@@ -193,20 +194,22 @@ If the verification token sent in the body is invalid *[which suggests that the 
 *[You can send a form-data object in both scenarios. However, the appended JSON object **must** be named "jsonBody"]*
 
 
-#### 4. Re-send email verification
-It allows you to re-send the email verification to a to-be-verified user. The requirements don't vary.<br>
+#### 4. Re-send emails
+It allows you to re-send emails (for email verifications and requesting password changes). The requirements don't vary.<br>
 
 **POST Request to endpoint:**<br>
 /verifications/emailResends
 
 - **Requirements**:
-    - Build a JSON body with the mandatory data for re-sending an email verification: userId (The recipient user id).<br>
+    - Build a JSON body with the mandatory data for re-sending an email: userId (The recipient user id), purpose (the purpose of the email).<br>
+    *[the "purpose" field can just have two values: 'changePassword' => resend emails for password changes, 'verifyEmail' => resend emails for email verifications]*<br>
     - Send the JSON body directly as a JSON object to the endpoint. <br>
 
 **Example :**
 ```
 {
-    "userId": 17
+    "userId": 17,
+    "purpose": "verifyEmail"
 }
 ```
 
@@ -225,7 +228,7 @@ If everything went well, the API should send back the basic information of the r
         "hierarchyLevelId": 2
     },
     "message": [
-        "Email was re-sent successfully. Please, check your inbox to verify your email address te***@example.ca"
+        "Email was re-sent successfully. Please, check your email te***@example.ca inbox"
     ]
 }
 ```
@@ -240,7 +243,7 @@ If the userId field is not sent or is null, the API should send back a JSON body
 ```
 
 **Expected exception response 2:**<br>
-If a to-be-verified user with the given userId does not exist, the API should send back a JSON body with the information of the error and a **404** status code.
+If a user with the given userId does not exist, the API should send back a JSON body with a message similar to the following one and a **404** status code.
 ```
 [Content-Type: "application/json"]
 {
@@ -249,7 +252,7 @@ If a to-be-verified user with the given userId does not exist, the API should se
 ```
 
 **Expected exception response 3:**<br>
-If something went wrong while re-sending the verification email, the API should send back a JSON body with a generic internal server error message and a **500** status code.
+If something went wrong while re-sending the email, the API should send back a JSON body with a generic internal server error message and a **500** status code.
 ```
 [Content-Type: "application/json"]
 {
@@ -260,6 +263,120 @@ If something went wrong while re-sending the verification email, the API should 
 **Note:**  
 *[You can send a form-data object in both scenarios. However, the appended JSON object **must** be named "jsonBody"]*
 
+#### 5. Request password change of user profile
+It allows you to request the change of password of a user profile. The requirements don't vary.<br>
+
+**POST Request to endpoint:**<br>
+/users/my/password
+
+- **Requirements**:
+    - Build a JSON body with the mandatory data for requesting a change of password: email.
+    - Send the JSON body directly as a JSON object to the endpoint. <br>
+
+**Example :**
+```
+{
+    "email": "test1@example.ca"
+}
+```
+
+**Expected response:**<br>
+If everything went well, the API should send back the basic information of the user whose password has been requested to change and a message like the following example, and a **200** status code. Now, they should receive an email with the instructions to change their password.
+```
+[Content-Type: "application/json"]
+{
+    "user": {
+        "userId": 17,
+        "username": "test1",
+        "email": "test1@example.ca",
+        "picture": "blank-profile-picture.webp",
+        "joinedAt": "2025-03-30 13:30:56",
+        "amountOfPosts": 0,
+        "hierarchyLevelId": 2
+    },
+    "message": [
+        "We sent you an email to te***@example.ca with the instructions to change your password"
+    ]
+}
+```
+**Expected exception response 1:**<br>
+If any of the fields of the given data is invalid, the API should send back a JSON body with the information of the error and a **400** status code.
+```
+[Content-Type: "application/json"]
+{
+    "errors": ["error1", "error2", "error3"]
+}
+```
+
+**Expected exception response 2:**<br>
+If a user with the given email does not exist, the API should send back a JSON body with the information of the error and a **404** status code.
+```
+[Content-Type: "application/json"]
+{
+    "errors": ["Email does not exist"]
+}
+```
+
+**Expected exception response 3:**<br>
+If something went wrong while sending the verification email, the API should send back a JSON body with a generic internal server error message and a **500** status code.
+```
+[Content-Type: "application/json"]
+{
+    "errors": ["An error occured. Please try again or come back later."]
+}
+```
+
+**Note:**  
+*[You can send a form-data object in both scenarios. However, the appended JSON object **must** be named "jsonBody"]*
+
+
+#### 6. Change passwords (unusable)
+It allows you to change the password of a user account. While it can technically be used, the Original link sent in the email by the API takes well care of it. The requirements don't vary.<br>
+
+**POST Request to endpoint:**<br>
+/verifications/passwordChanges
+
+- **Requirements**:
+    - Build a JSON body with the mandatory data for changing the password of a user profile: verificationToken, password *['password' referring to the new password]*.<br>
+    *[This "verificationToken" is generated automatically by the API and sent along with the link in the email]*<br>
+    - Send the JSON body directly as a JSON object to the endpoint. <br>
+
+**Example :**
+```
+{
+    "verificationToken": "abcdefgh990",
+    "password": "newpass123"
+}
+```
+
+**Expected response:**<br>
+If everything went well, the API should send back a message like the following example and a **200** status code.
+```
+[Content-Type: "application/json"]
+{
+    "user": {
+        "userId": 17,
+        "username": "test1",
+        "email": "test1@example.ca",
+        "picture": "blank-profile-picture.webp",
+        "joinedAt": "2025-03-30 13:30:56",
+        "amountOfPosts": 0,
+        "hierarchyLevelId": 2
+    },
+    "message": ["Password was changed succesfully."]
+}
+```
+**Expected exception response:**<br>
+If the verification token or password sent in the body are invalid *[which suggests the structure of the verificationToken is invalid (created by anyone to fool the API) or the verificationToken expired already (verificationTokens are valid for 15 minutes)]*, the API should send back a JSON body with the information of the error and a **400** status code.
+```
+[Content-Type: "application/json"]
+{
+    "errors": ["error1, error2"]
+}
+```
+
+**Note:**  
+*[You can send a form-data object in both scenarios. However, the appended JSON object **must** be named "jsonBody"]*
 
 
 
@@ -322,13 +439,13 @@ If everything went well, the API should send back a JSON body with the informati
 *[You can send an object (JSON or form-data). However, it will not be taken into account because it is not useful in this request]*
 
 #### 3. Edit information of the logged-in profile
-It allows you edit the information of the user in session. The requirements vary whether you upload or not a custom profile picture.<br>
+It allows you edit the information of the user in session *[just the username and profile picture can be changed]*. The requirements vary whether you upload or not a custom profile picture.<br>
 
 **POST Request to endpoint:**<br>
 /users/my/profile
 
 - **Update with no custom profile picture requirements**:
-    - Build a JSON body with any fields you want to update in the profile: username, email or password.
+    - Build a JSON body with the only field you can update in the profile: username.
     - Send the JSON body directly as a JSON object to the endpoint.
 
 **Example:**
@@ -336,12 +453,11 @@ It allows you edit the information of the user in session. The requirements vary
 [Content-Type: "application/json"]
 {
     "username": "test1updated",
-    "password": "test1passupdated"
 }
 ```
 - **Update with custom profile picture requirements**:
     - Build a form-data object.
-    - Append a JSON body to the form-data object with any fields you want to update in the profile: username, email or password.<br>
+    - Append a JSON body to the form-data object with any fields you want to update in the profile: username.<br>
     *[The appended JSON body **must** be named "jsonBody"]*
     - Append the corresponding image to the form-data object. <br>
     *[The appended image **must** be named "picture"]*
@@ -367,7 +483,7 @@ If any of the fields intended to update is invalid, the API should send back a J
 ```
 [Content-Type: "application/json"]
 {
-    "errors": ["error1", "error2", "error3"]
+    "errors": ["error1", "error2"]
 }
 ```
 **Note:**<br>

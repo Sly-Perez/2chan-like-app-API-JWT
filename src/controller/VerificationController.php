@@ -72,17 +72,49 @@ class VerificationController{
                             return;
                         }
 
-                        $user = $this->userGateway->getInactiveById($data["userId"], true);
-
-                        if(!$user){
-                            http_response_code(404);
+                        if(!key_exists("purpose", $data) || $data["purpose"] == null){
+                            http_response_code(400);
                             echo json_encode([
-                                "errors"=>["To-be-verified User with id {$data["userId"]} was not found"]
+                                "errors"=>["The purpose of the email to resend is required"]
                             ]);
                             return;
                         }
 
-                        $emailWasSent = $this->userController->sendMail($user);
+                        switch ($data["purpose"]) {
+                            case 'verifyEmail':
+                                $user = $this->userGateway->getInactiveById($data["userId"], true);
+
+                                if(!$user){
+                                    http_response_code(404);
+                                    echo json_encode([
+                                        "errors"=>["To-be-verified User with id {$data["userId"]} was not found"]
+                                    ]);
+                                    return;
+                                }
+                                break;
+                            case 'changePassword':
+                                $user = $this->userGateway->getById($data["userId"], true);
+
+                                if(!$user){
+                                    http_response_code(404);
+                                    echo json_encode([
+                                        "errors"=>["User with id {$data["userId"]} was not found"]
+                                    ]);
+                                    return;
+                                }
+                                break;
+                            default:
+                                http_response_code(400);
+                                echo json_encode([
+                                    "errors"=>["The purpose of the email can just be: 'verifyEmail', 'changePassword'."]
+                                ]);
+                                return;
+                        }
+
+                        //if (purpose == 'changePassword'), it will be true. Otherwise, false.
+                        $is_for_password_change = ($data['purpose'] == 'changePassword');
+
+                        $emailWasSent = $this->userController->sendMail($user, $is_for_password_change);
 
 
                         if(!$emailWasSent){
@@ -108,11 +140,51 @@ class VerificationController{
                         http_response_code(200);
                         echo json_encode([
                             "user"=>$user,
-                            "message"=>["Email was re-sent successfully. Please, check your inbox to verify your email address $emailMasked"]
+                            "message"=>["Email was re-sent successfully. Please, check your email $emailMasked inbox"]
                         ]);
 
                         break;
-                    
+                    case "passwordChanges":
+                        //we send {"verificationToken": "example_vf", "password": "example_p"}
+                        $data = isset($_POST['jsonBody']) ? json_decode($_POST['jsonBody'], true) : json_decode(file_get_contents("php://input"), true);
+                        
+                        $verificationTokenIsValid = $this->verificationTokenIsValid($data["verificationToken"] ?? "", true);
+
+                        if(!$verificationTokenIsValid){
+                            http_response_code(400);
+                            echo json_encode([
+                                "errors"=>["Verification Token is Invalid"]
+                            ]);
+                            break;
+                        }
+
+                        $userDB = $this->getUserByVerificationToken($data["verificationToken"], true);
+
+                        $sanitizedData = $this->userController->getSanitizedInputData($data ?? NULL, NULL);
+
+                        $errors = $this->userController->getValidationInputErrorsForPassword($sanitizedData);
+
+                        if(count($errors) !== 0){
+                            http_response_code(400);
+                            echo json_encode([
+                                "errors"=>$errors
+                            ]);
+                            return;
+                        }
+
+                        $this->userGateway->updatePasswordById($userDB['userId'], $sanitizedData['password']);
+
+                        $user = $this->userGateway->getById($userDB["userId"], true);
+                        
+                        $emailWasSent = $this->userController->sendMail($user, false, true);
+                        
+                        http_response_code(200);
+                        echo json_encode([
+                            "user"=>$user,
+                            "message"=>["Password was changed succesfully."]
+                        ]);
+
+                        break;
                     default:
                         http_response_code(404);
                         echo json_encode([
@@ -129,14 +201,14 @@ class VerificationController{
         }
     }
 
-    private function verificationTokenIsValid(string $verificationToken): bool{
-        $verifTokenIsAuthentic = $this->validateVerificationToken($verificationToken);
+    private function verificationTokenIsValid(string $verificationToken, bool $is_for_password_change = false): bool{
+        $verifTokenIsAuthentic = $this->validateVerificationToken($verificationToken, $is_for_password_change);
 
         if(!$verifTokenIsAuthentic){
             return false;
         }
 
-        $user = $this->getUserByVerificationToken($verificationToken);
+        $user = $this->getUserByVerificationToken($verificationToken, $is_for_password_change);
 
         if(!$user){
             return false;
@@ -146,7 +218,7 @@ class VerificationController{
     }
 
 
-    private function validateVerificationToken(string $verificationToken): bool{
+    private function validateVerificationToken(string $verificationToken, bool $is_for_password_change = false): bool{
         if(!str_contains($verificationToken, '.')){
             return false;
         }
@@ -169,19 +241,29 @@ class VerificationController{
             return false;
         }
         
-        $userDB = $this->userGateway->getInactiveById($payload['userId'], true);
+        if($is_for_password_change){
+            $secretKey = 'secret-key-that-no-one-knows-password';
+            
+            $userDB = $this->userGateway->getById($payload['userId'], true);
+        }
+        else{
+            $secretKey = 'secret-key-that-no-one-knows-email';
+            
+            $userDB = $this->userGateway->getInactiveById($payload['userId'], true);
+        }
         
         if(!$userDB){
             return false;
         }
-    
-        $expectedSignature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, 'secret-key-that-no-one-knows-email', true);
+        
+        
+        $expectedSignature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, $secretKey, true);
         $base64UrlExpectedSignature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($expectedSignature));
-    
+        
         return ($base64UrlSignature === $base64UrlExpectedSignature);
     }
 
-    private function getUserByVerificationToken(string $verificationToken): array | false{
+    private function getUserByVerificationToken(string $verificationToken, bool $is_for_password_change = false): array | false{
         list($base64UrlHeader, $base64UrlPayload, $base64UrlSignature) = explode('.', $verificationToken);
     
         $payload = json_decode(base64_decode($base64UrlPayload), true);
@@ -190,7 +272,12 @@ class VerificationController{
             return false;
         }
 
-        $user = $this->userGateway->getInactiveById($payload['userId'], true);
+        if($is_for_password_change){
+            $user = $this->userGateway->getById($payload['userId'], true);
+        }
+        else{
+            $user = $this->userGateway->getInactiveById($payload['userId'], true);
+        }
 
         return $user;
     }

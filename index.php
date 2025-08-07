@@ -81,6 +81,9 @@ if(array_key_exists(3, $parts)){
         case "emailResends":
             $url = "emailResends";
             break;
+        case "passwordChanges":
+            $url = "passwordChanges";
+            break;
         default:
             $url = NULL;
             break;
@@ -155,16 +158,28 @@ if($_SERVER['REQUEST_METHOD'] === "POST"){
         }
         return;
     }
+    else if( ($parts[2] === "users") && ($url === "my/password") ){
+        $userController->processRequest($_SERVER['REQUEST_METHOD'], $id, $url);
+        return;
+    }
     else if($parts[2] === "verifications"){
-        if($jwtIsValid){
-            http_response_code(400);
-            echo json_encode([
-                "errors"=>["Your session has not expired yet. Cannot verify email address while being in session"]
-            ]);
-        }
-        else{
+
+        //you can change your password or resend emails whether you have or not an active session
+        if($url === 'passwordChanges' || $url === 'emailResends'){
             $verificationController = new VerificationController($userGateway, $userController);
             $verificationController->processRequest($_SERVER['REQUEST_METHOD'], $id, $url);
+        }
+        else{
+            if($jwtIsValid){
+                http_response_code(400);
+                echo json_encode([
+                    "errors"=>["Your session has not expired yet. Cannot verify email address while being in session"]
+                ]);
+            }
+            else{
+                $verificationController = new VerificationController($userGateway, $userController);
+                $verificationController->processRequest($_SERVER['REQUEST_METHOD'], $id, $url);
+            }
         }
         return;
     }
